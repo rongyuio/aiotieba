@@ -37,12 +37,33 @@ func ParseJSONMap(data []byte) (map[string]any, error) {
 
 	var out map[string]any
 	if err := dec.Decode(&out); err != nil {
-		return nil, fmt.Errorf("helper: decoding the JSON response: %w", err)
+		// 上游返回 HTML（风控页 / 网关页）时，光看 invalid character '<' 分不出是哪种，
+		// 所以把原文开头一段带上。Python 版这里是裸的 jsonlib.loads、不带原文，
+		// 这一处是有意的偏离，只为排查
+		return nil, fmt.Errorf("helper: decoding the JSON response: %w%s", err, bodySnippet(data))
 	}
 	if out == nil {
 		return nil, fmt.Errorf("helper: the JSON response is not an object")
 	}
 	return out, nil
+}
+
+// bodySnippet 把响应体收成一小段用于报错，返回形如 " (原文: <html>…)" 的后缀。
+//
+// 折叠空白后截断，免得一条错误把日志冲掉；响应体为空（或只有空白）时返回空串，
+// 不往错误里加一个空括号。截断按 rune 走：data[:200] 会把多字节字符切成半个。
+func bodySnippet(data []byte) string {
+	s := strings.Join(strings.Fields(string(data)), " ")
+	if s == "" {
+		return ""
+	}
+
+	const maxRunes = 200
+	if r := []rune(s); len(r) > maxRunes {
+		s = string(r[:maxRunes]) + "…"
+	}
+
+	return " (原文: " + s + ")"
 }
 
 // JSONInt 把 m[key] 作为 int64 返回，缺失的键返回 0，对应 Python 在数字字段上使用的 int(m[key]) 转换。

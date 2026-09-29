@@ -180,6 +180,11 @@ git log --oneline '6a32de11..refs/remotes/upstream/master' -- \
 - 消息体与 Python 版逐字对齐：`[api名] <异常或 Succeeded>. args=(...) kwargs={...}`，由 `logging.PyRepr` / `PyArgs` / `PyErr` 渲染
 - 只有写操作（返回 `exception.BoolResponse` 的方法）记录成功日志，读接口只记录失败
 - `EnableFileLog` 额外写入 `log/<程序名>.log`：无颜色、只记 INFO 及以上，轮转交由 lumberjack（单文件 10MB、保留 5 份）
+- ⚠️ **一处有意的偏离**：`helper.ParseJSONMap` 解析失败时会在错误里附上响应体开头一段
+  （折叠空白、截到 200 个字符）。Python 版这里是裸的 `jsonlib.loads`、不带原文——而上游返回
+  HTML（风控页 / 网关页）时，只有 `invalid character '<'` 分不出是哪种情况，拿到错误的人无从
+  判断该重试还是该停手。上面那条「逐字对齐」管的是日志**骨架**，`<异常>` 那段是 Go 侧渲染的
+  `err.Error()`，不受影响
 
 Go 的方法没有装饰器可用，因此日志靠约定维持：
 
